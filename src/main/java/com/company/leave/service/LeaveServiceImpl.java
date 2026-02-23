@@ -23,6 +23,7 @@ public class LeaveServiceImpl implements LeaveService {
 
 	private final LeaveRepository repo;
 	private final EmployeeClient employeeClient;
+	private final LeaveEventPublisher publisher;
 
 	@Override
 	public LeaveRequest createLeave(LeaveRequestDto dto) {
@@ -35,7 +36,15 @@ public class LeaveServiceImpl implements LeaveService {
 				.endDate(dto.getEndDate()).reason(dto.getReason()).status(LeaveStatus.PENDING)
 				.createdAt(LocalDateTime.now()).build();
 
-		return repo.save(leave);
+		LeaveRequest saved = repo.save(leave);
+
+		try {
+			publisher.publishLeaveEvent(saved);
+		} catch (Exception e) {
+			log.error("Failed to publish leave create event {}", saved.getId(), e);
+		}
+
+		return saved;
 	}
 
 	private void validateDates(LeaveRequestDto dto) {
@@ -49,15 +58,26 @@ public class LeaveServiceImpl implements LeaveService {
 		LeaveRequest leave = repo.findById(id).orElseThrow(() -> new ResourceNotFoundException("Leave not found"));
 
 		leave.setStatus(status);
-		return repo.save(leave);
+		LeaveRequest updated = repo.save(leave);
+
+		try {
+			publisher.publishLeaveEvent(updated);
+		} catch (Exception e) {
+			log.error("Failed to publish leave update event {}", updated.getId(), e);
+		}
+
+		return updated;
 	}
 
 	@Override
 	@Transactional
 	public List<LeaveRequest> getByEmployee(Long empId) {
+
+		employeeClient.validateEmployee(empId);
+
 		List<LeaveRequest> leaves = repo.findByEmployeeId(empId);
 
-		if (leaves.isEmpty()) {
+		if (leaves == null || leaves.isEmpty()) {
 			throw new ResourceNotFoundException("Employee not found or no leave records");
 		}
 
