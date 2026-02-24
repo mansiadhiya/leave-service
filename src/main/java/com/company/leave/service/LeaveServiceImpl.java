@@ -27,6 +27,8 @@ public class LeaveServiceImpl implements LeaveService {
 
 	@Override
 	public LeaveRequest createLeave(LeaveRequestDto dto) {
+		log.info("Creating leave request for employeeId={}, startDate={}, endDate={}", 
+				dto.getEmployeeId(), dto.getStartDate(), dto.getEndDate());
 
 		validateDates(dto);
 
@@ -37,33 +39,50 @@ public class LeaveServiceImpl implements LeaveService {
 				.createdAt(LocalDateTime.now()).build();
 
 		LeaveRequest saved = repo.save(leave);
+		log.info("Leave request created successfully with leaveId={}, employeeId={}, status={}", 
+				saved.getId(), saved.getEmployeeId(), saved.getStatus());
 
 		try {
 			publisher.publishLeaveEvent(saved);
+			log.info("Leave event published successfully for leaveId={}", saved.getId());
 		} catch (Exception e) {
-			log.error("Failed to publish leave create event {}", saved.getId(), e);
+			log.info("Failed to publish leave create event for leaveId={}, employeeId={}", 
+					saved.getId(), saved.getEmployeeId(), e);
 		}
 
 		return saved;
 	}
 
 	private void validateDates(LeaveRequestDto dto) {
-		if (dto.getEndDate().isBefore(dto.getStartDate()))
+		log.debug("Validating dates for startDate={}, endDate={}", dto.getStartDate(), dto.getEndDate());
+		if (dto.getEndDate().isBefore(dto.getStartDate())) {
+			log.warn("Invalid date range: endDate={} is before startDate={}", dto.getEndDate(), dto.getStartDate());
 			throw new BadRequestException("End date must be after start date");
+		}
 	}
 
 	@Override
 	public LeaveRequest updateStatus(Long id, LeaveStatus status) {
+		log.info("Updating leave status for leaveId={}, newStatus={}", id, status);
 
-		LeaveRequest leave = repo.findById(id).orElseThrow(() -> new ResourceNotFoundException("Leave not found"));
+		LeaveRequest leave = repo.findById(id)
+				.orElseThrow(() -> {
+					log.info("Leave not found with leaveId={}", id);
+					return new ResourceNotFoundException("Leave not found");
+				});
 
+		LeaveStatus oldStatus = leave.getStatus();
 		leave.setStatus(status);
 		LeaveRequest updated = repo.save(leave);
+		log.info("Leave status updated successfully for leaveId={}, employeeId={}, oldStatus={}, newStatus={}", 
+				updated.getId(), updated.getEmployeeId(), oldStatus, status);
 
 		try {
 			publisher.publishLeaveEvent(updated);
+			log.info("Leave status update event published for leaveId={}", updated.getId());
 		} catch (Exception e) {
-			log.error("Failed to publish leave update event {}", updated.getId(), e);
+			log.info("Failed to publish leave update event for leaveId={}, employeeId={}, status={}", 
+					updated.getId(), updated.getEmployeeId(), status, e);
 		}
 
 		return updated;
@@ -72,15 +91,18 @@ public class LeaveServiceImpl implements LeaveService {
 	@Override
 	@Transactional
 	public List<LeaveRequest> getByEmployee(Long empId) {
+		log.info("Fetching leave requests for employeeId={}", empId);
 
 		employeeClient.validateEmployee(empId);
 
 		List<LeaveRequest> leaves = repo.findByEmployeeId(empId);
 
 		if (leaves == null || leaves.isEmpty()) {
+			log.warn("No leave records found for employeeId={}", empId);
 			throw new ResourceNotFoundException("Employee not found or no leave records");
 		}
 
+		log.info("Found {} leave records for employeeId={}", leaves.size(), empId);
 		return leaves;
 	}
 

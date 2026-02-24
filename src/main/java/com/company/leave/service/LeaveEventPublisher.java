@@ -19,6 +19,8 @@ public class LeaveEventPublisher {
     private final ObjectMapper mapper;
 
     public void publishLeaveEvent(LeaveRequest leave){
+        log.info("Publishing leave event for leaveId={}, employeeId={}, status={}", 
+                leave.getId(), leave.getEmployeeId(), leave.getStatus());
 
         try{
 
@@ -39,10 +41,13 @@ public class LeaveEventPublisher {
                     payload
             );
 
-            log.info("Leave event published for request {}", leave.getId());
+            log.info("Leave event published successfully for leaveId={}, employeeId={}", 
+                    leave.getId(), leave.getEmployeeId());
 
         } catch (Exception e){
-            log.error("Failed to publish leave event", e);
+            log.info("Failed to publish leave event for leaveId={}, employeeId={}", 
+                    leave.getId(), leave.getEmployeeId(), e);
+            throw e;
         }
     }
 
