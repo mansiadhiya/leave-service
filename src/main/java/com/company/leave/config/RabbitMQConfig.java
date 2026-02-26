@@ -40,8 +40,8 @@ public class RabbitMQConfig {
     @Bean
     public Queue leaveEventsQueue() {
         return QueueBuilder.durable(leaveEventsQueue)
-                .withArgument("x-dead-letter-exchange", leaveEventsDLX)
-                .withArgument("x-dead-letter-routing-key", leaveEventsDLQRoutingKey)
+                .deadLetterExchange(leaveEventsDLX)
+                .deadLetterRoutingKey(leaveEventsDLQRoutingKey)
                 .build();
     }
 

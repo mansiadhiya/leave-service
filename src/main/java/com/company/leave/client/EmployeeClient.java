@@ -18,9 +18,9 @@ import reactor.core.publisher.Mono;
 @Slf4j
 public class EmployeeClient {
 	
-	 private final HttpServletRequest request;
+	 private final HttpServletRequest httpRequest;
 
-	    private final WebClient webClient =
+	    private final WebClient employeeWebClient =
 	            WebClient.builder()
 	                    .baseUrl("http://employee-service:8083")
 	                    .build();
@@ -29,26 +29,26 @@ public class EmployeeClient {
 	    @Retry(name = "employeeService")
 	    public void validateEmployee(Long employeeId) {
 	        log.info("Validating employee with employeeId={}", employeeId);
-	        String authHeader = request.getHeader("Authorization");
+	        String authorizationHeader = httpRequest.getHeader("Authorization");
 
 	        try {
-	            webClient.get()
+	            employeeWebClient.get()
 	                    .uri("/api/employees/{id}", employeeId)
-	                    .header("Authorization", authHeader)
+	                    .header("Authorization", authorizationHeader)
 	                    .retrieve()
 	                    .onStatus(HttpStatusCode::isError,
-	                            res -> Mono.error(new ExternalServiceException("Employee not found with id: " + employeeId)))
+	                            errorResponse -> Mono.error(new ExternalServiceException("Employee not found with id: " + employeeId)))
 	                    .toBodilessEntity()
 	                    .block();
 	            log.info("Employee validation successful for employeeId={}", employeeId);
-	        } catch (Exception e) {
-	            log.info("Failed to validate employee with employeeId={}", employeeId, e);
-	            throw e;
+	        } catch (Exception validationException) {
+	            log.info("Failed to validate employee with employeeId={}", employeeId, validationException);
+	            throw validationException;
 	        }
 	    }
 	    
-	    private void validateEmployeeFallback(Long employeeId, Exception e) {
-	        log.info("Circuit breaker fallback triggered for employeeId={}, reason={}", employeeId, e.getMessage());
+	    private void validateEmployeeFallback(Long employeeId, Exception fallbackException) {
+	        log.info("Circuit breaker fallback triggered for employeeId={}, reason={}", employeeId, fallbackException.getMessage());
 	        throw new ExternalServiceException("Employee service is currently unavailable. Please try again later.");
 	    }
 }

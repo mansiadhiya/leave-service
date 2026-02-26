@@ -14,25 +14,19 @@ import lombok.extern.slf4j.Slf4j;
 public class GlobalExceptionHandler {
 	
 	 @ExceptionHandler(ResourceNotFoundException.class)
-	    public ResponseEntity<ApiResponse<?>> notFound(ResourceNotFoundException ex) {
+	    public ResponseEntity<ApiResponse<Object>> notFound(ResourceNotFoundException ex) {
 	        return ResponseEntity.status(HttpStatus.NOT_FOUND)
 	                .body(ApiResponse.error(ex.getMessage()));
 	    }
 
 	    @ExceptionHandler(BadRequestException.class)
-	    public ResponseEntity<ApiResponse<?>> badRequest(BadRequestException ex) {
+	    public ResponseEntity<ApiResponse<Object>> badRequest(BadRequestException ex) {
 	        return ResponseEntity.badRequest()
 	                .body(ApiResponse.error(ex.getMessage()));
 	    }
 
-//	    @ExceptionHandler(ExternalServiceException.class)
-//	    public ResponseEntity<ApiResponse<?>> external(ExternalServiceException ex) {
-//	        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-//	                .body(ApiResponse.error(ex.getMessage()));
-//	    }
-
 	    @ExceptionHandler(Exception.class)
-	    public ResponseEntity<ApiResponse<?>> generic(Exception ex) {
+	    public ResponseEntity<ApiResponse<Object>> generic(Exception ex) {
 	        log.error("Unhandled exception", ex);
 	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
 	                .body(ApiResponse.error("Internal server error"));

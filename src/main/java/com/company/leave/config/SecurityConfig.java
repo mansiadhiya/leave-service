@@ -16,19 +16,22 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
+	private static final String API_LEAVES_PATH = "/api/leaves/**";
+	private static final String ROLE_ADMIN = "ADMIN";
+
 	private final JwtFilter jwtFilter;
 
 	@Bean
-	SecurityFilterChain filter(HttpSecurity http) throws Exception {
+	SecurityFilterChain filter(HttpSecurity http) {
 
 		http.csrf(csrf -> csrf.disable())
 				.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
 				.authorizeHttpRequests(auth -> auth
 
-						.requestMatchers(HttpMethod.POST, "/api/leaves/**").hasRole("ADMIN")
-						.requestMatchers(HttpMethod.PUT, "/api/leaves/**").hasRole("ADMIN")
-						.requestMatchers(HttpMethod.GET, "/api/leaves/**").hasAnyRole("ADMIN", "USER")
+						.requestMatchers(HttpMethod.POST, API_LEAVES_PATH).hasRole(ROLE_ADMIN)
+						.requestMatchers(HttpMethod.PUT, API_LEAVES_PATH).hasRole(ROLE_ADMIN)
+						.requestMatchers(HttpMethod.GET, API_LEAVES_PATH).hasAnyRole(ROLE_ADMIN, "USER")
 
 						.anyRequest().authenticated())
 				.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);

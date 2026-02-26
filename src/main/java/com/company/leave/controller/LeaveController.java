@@ -19,23 +19,23 @@ import lombok.RequiredArgsConstructor;
 @Validated
 public class LeaveController {
 
-	private final LeaveService service;
+	private final LeaveService leaveService;
 
 	@PostMapping
-	public ResponseEntity<ApiResponse<?>> create(@Valid @RequestBody LeaveRequestDto dto) {
+	public ResponseEntity<ApiResponse<Object>> create(@Valid @RequestBody LeaveRequestDto leaveRequestDto) {
 		return ResponseEntity.status(HttpStatus.CREATED)
-				.body(ApiResponse.success("Leave created", service.createLeave(dto)));
+				.body(ApiResponse.success("Leave created", leaveService.createLeave(leaveRequestDto)));
 	}
 
 	@PutMapping("/{id}/status")
-	public ApiResponse<?> updateStatus(@PathVariable Long id, @RequestParam LeaveStatus status) {
+	public ApiResponse<Object> updateStatus(@PathVariable("id") Long leaveId, @RequestParam LeaveStatus leaveStatus) {
 
-		return ApiResponse.success("Status updated", service.updateStatus(id, status));
+		return ApiResponse.success("Status updated", leaveService.updateStatus(leaveId, leaveStatus));
 	}
 
 	@GetMapping("/employee/{empId}")
-	public ApiResponse<?> list(@PathVariable Long empId) {
-		return ApiResponse.success("Employee leaves", service.getByEmployee(empId));
+	public ApiResponse<Object> list(@PathVariable("empId") Long employeeId) {
+		return ApiResponse.success("Employee leaves", leaveService.getByEmployee(employeeId));
 	}
 
 }

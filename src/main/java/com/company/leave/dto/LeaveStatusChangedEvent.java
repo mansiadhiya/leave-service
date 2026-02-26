@@ -6,15 +6,11 @@ import com.company.leave.entity.LeaveStatus;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.validation.constraints.*;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 @Data
 @Builder
-@AllArgsConstructor
-@NoArgsConstructor
 public class LeaveStatusChangedEvent {
 
 	@NotNull(message = "Request ID is required")

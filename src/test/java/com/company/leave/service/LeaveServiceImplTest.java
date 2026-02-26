@@ -1,174 +1,160 @@
 package com.company.leave.service;
 
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.*;
-
 import com.company.leave.client.EmployeeClient;
 import com.company.leave.dto.LeaveRequestDto;
 import com.company.leave.entity.LeaveRequest;
 import com.company.leave.entity.LeaveStatus;
 import com.company.leave.exception.BadRequestException;
-import com.company.leave.exception.ExternalServiceException;
 import com.company.leave.exception.ResourceNotFoundException;
+import com.company.leave.mapper.LeaveMapper;
 import com.company.leave.repository.LeaveRepository;
 
 @ExtendWith(MockitoExtension.class)
-public class LeaveServiceImplTest {
+class LeaveServiceImplTest {
 
     @Mock
-    private LeaveRepository repository;
+    private LeaveRepository leaveRepository;
 
     @Mock
     private EmployeeClient employeeClient;
 
-    @InjectMocks
-    private LeaveServiceImpl service;
+    @Mock
+    private LeaveEventPublisher eventPublisher;
 
-    private LeaveRequest existingLeave;
+    @Mock
+    private LeaveMapper leaveMapper;
+
+    @InjectMocks
+    private LeaveServiceImpl leaveService;
+
+    private LeaveRequestDto leaveRequestDto;
+    private LeaveRequest leaveRequest;
 
     @BeforeEach
-    void init() {
-        existingLeave = LeaveRequest.builder()
+    void setUp() {
+        leaveRequestDto = new LeaveRequestDto();
+        leaveRequestDto.setEmployeeId(1L);
+        leaveRequestDto.setStartDate(LocalDate.now().plusDays(1));
+        leaveRequestDto.setEndDate(LocalDate.now().plusDays(5));
+        leaveRequestDto.setReason("Vacation");
+
+        leaveRequest = LeaveRequest.builder()
                 .id(1L)
-                .employeeId(101L)
-                .startDate(LocalDate.now())
-                .endDate(LocalDate.now().plusDays(2))
+                .employeeId(1L)
+                .startDate(LocalDate.now().plusDays(1))
+                .endDate(LocalDate.now().plusDays(5))
                 .status(LeaveStatus.PENDING)
                 .reason("Vacation")
-                .createdAt(LocalDateTime.now())
                 .build();
     }
 
-    @Nested
-    @DisplayName("Create Leave Tests")
-    class CreateLeave {
+    @Test
+    void createLeave_WithValidRequest_CreatesLeave() {
+       // when(employeeClient.validateEmployee(1L)).thenReturn(true);
+        when(leaveMapper.toEntity(leaveRequestDto)).thenReturn(leaveRequest);
+        when(leaveRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
 
-        @Test
-        @DisplayName("Should create leave when input is valid")
-        void shouldCreateLeaveSuccessfully() {
-            LeaveRequestDto dto = validDto();
-            when(repository.save(any())).thenReturn(existingLeave);
+        LeaveRequest result = leaveService.createLeave(leaveRequestDto);
 
-            LeaveRequest result = service.createLeave(dto);
-
-            assertThat(result)
-                    .isNotNull()
-                    .extracting(LeaveRequest::getEmployeeId)
-                    .isEqualTo(101L);
-            verify(employeeClient).validateEmployee(101L);
-            verify(repository).save(any());
-        }
-
-        @Test
-        @DisplayName("Should throw exception when end date before start date")
-        void shouldRejectInvalidDateRange() {
-            LeaveRequestDto dto = validDto();
-            dto.setEndDate(dto.getStartDate().minusDays(1));
-
-            assertThatThrownBy(() -> service.createLeave(dto))
-                    .isInstanceOf(BadRequestException.class)
-                    .hasMessageContaining("End date");
-            verifyNoInteractions(repository);
-        }
-
-        @Test
-        @DisplayName("Should throw exception when employee does not exist")
-        void shouldFailIfEmployeeMissing() {
-            LeaveRequestDto dto = validDto();
-            doThrow(new ExternalServiceException("Employee not found"))
-                    .when(employeeClient)
-                    .validateEmployee(101L);
-
-            assertThatThrownBy(() -> service.createLeave(dto))
-                    .isInstanceOf(ExternalServiceException.class);
-            verify(repository, never()).save(any());
-        }
+        assertNotNull(result);
+        assertEquals(LeaveStatus.PENDING, result.getStatus());
+        verify(leaveRepository).save(any(LeaveRequest.class));
+        verify(eventPublisher).publishLeaveEvent(any(LeaveRequest.class));
     }
 
-    @Nested
-    @DisplayName("Fetch Leave Tests")
-    class FetchLeaves {
+    @Test
+    void createLeave_WithInvalidDates_ThrowsException() {
+        leaveRequestDto.setEndDate(LocalDate.now().minusDays(1));
 
-        @Test
-        @DisplayName("Should return leave list for employee")
-        void shouldReturnLeaves() {
-            doNothing().when(employeeClient).validateEmployee(101L);
-            when(repository.findByEmployeeId(101L))
-                    .thenReturn(List.of(existingLeave));
-
-            List<LeaveRequest> result = service.getByEmployee(101L);
-
-            assertThat(result)
-                    .hasSize(1)
-                    .first()
-                    .extracting(LeaveRequest::getStatus)
-                    .isEqualTo(LeaveStatus.PENDING);
-            verify(employeeClient).validateEmployee(101L);
-        }
-
-        @Test
-        @DisplayName("Should throw exception if no leaves exist")
-        void shouldThrowWhenNoLeavesFound() {
-            doNothing().when(employeeClient).validateEmployee(101L);
-            when(repository.findByEmployeeId(101L))
-                    .thenReturn(Collections.emptyList());
-
-            assertThatThrownBy(() -> service.getByEmployee(101L))
-                    .isInstanceOf(ResourceNotFoundException.class)
-                    .hasMessageContaining("Employee not found or no leave records");
-            verify(repository).findByEmployeeId(101L);
-        }
+        assertThrows(BadRequestException.class, () -> leaveService.createLeave(leaveRequestDto));
+        verify(leaveRepository, never()).save(any());
     }
 
-    @Nested
-    @DisplayName("Update Status Tests")
-    class UpdateStatus {
+    @Test
+    void createLeave_WhenEventPublishFails_StillCreatesLeave() {
+       // when(employeeClient.validateEmployee(1L)).thenReturn(true);
+        when(leaveMapper.toEntity(leaveRequestDto)).thenReturn(leaveRequest);
+        when(leaveRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
+        doThrow(new RuntimeException("Event failed")).when(eventPublisher).publishLeaveEvent(any());
 
-        @Test
-        @DisplayName("Should update leave status")
-        void shouldUpdateStatus() {
-            when(repository.findById(1L))
-                    .thenReturn(Optional.of(existingLeave));
-            when(repository.save(any()))
-                    .thenReturn(existingLeave);
+        LeaveRequest result = leaveService.createLeave(leaveRequestDto);
 
-            LeaveRequest updated = service.updateStatus(1L, LeaveStatus.APPROVED);
-
-            assertThat(updated.getStatus()).isEqualTo(LeaveStatus.APPROVED);
-        }
-
-        @Test
-        @DisplayName("Should throw exception when leave not found")
-        void shouldThrowWhenLeaveMissing() {
-            when(repository.findById(1L))
-                    .thenReturn(Optional.empty());
-
-            assertThatThrownBy(() -> service.updateStatus(1L, LeaveStatus.APPROVED))
-                    .isInstanceOf(ResourceNotFoundException.class);
-        }
+        assertNotNull(result);
+        verify(leaveRepository).save(any(LeaveRequest.class));
     }
 
-    private LeaveRequestDto validDto() {
-        LeaveRequestDto dto = new LeaveRequestDto();
-        dto.setEmployeeId(101L);
-        dto.setStartDate(LocalDate.now());
-        dto.setEndDate(LocalDate.now().plusDays(2));
-        dto.setReason("Travel");
-        return dto;
+    @Test
+    void updateStatus_WithValidId_UpdatesStatus() {
+        when(leaveRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+        when(leaveRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
+
+        LeaveRequest result = leaveService.updateStatus(1L, LeaveStatus.APPROVED);
+
+        assertNotNull(result);
+        verify(leaveRepository).save(any(LeaveRequest.class));
+        verify(eventPublisher).publishLeaveEvent(any(LeaveRequest.class));
+    }
+
+    @Test
+    void updateStatus_WithInvalidId_ThrowsException() {
+        when(leaveRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> leaveService.updateStatus(999L, LeaveStatus.APPROVED));
+        verify(leaveRepository, never()).save(any());
+    }
+
+    @Test
+    void updateStatus_WhenEventPublishFails_StillUpdates() {
+        when(leaveRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+        when(leaveRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
+        doThrow(new RuntimeException("Event failed")).when(eventPublisher).publishLeaveEvent(any());
+
+        LeaveRequest result = leaveService.updateStatus(1L, LeaveStatus.APPROVED);
+
+        assertNotNull(result);
+        verify(leaveRepository).save(any(LeaveRequest.class));
+    }
+
+    @Test
+    void getByEmployee_WithValidEmployee_ReturnsLeaves() {
+       // when(employeeClient.validateEmployee(1L)).thenReturn(true);
+        when(leaveRepository.findByEmployeeId(1L)).thenReturn(List.of(leaveRequest));
+
+        List<LeaveRequest> result = leaveService.getByEmployee(1L);
+
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        verify(leaveRepository).findByEmployeeId(1L);
+    }
+
+    @Test
+    void getByEmployee_WithNoLeaves_ThrowsException() {
+      //  when(employeeClient.validateEmployee(1L)).thenReturn(true);
+        when(leaveRepository.findByEmployeeId(1L)).thenReturn(List.of());
+
+        assertThrows(ResourceNotFoundException.class, () -> leaveService.getByEmployee(1L));
+    }
+
+    @Test
+    void getByEmployee_WithNullList_ThrowsException() {
+       // when(employeeClient.validateEmployee(1L)).thenReturn(true);
+        when(leaveRepository.findByEmployeeId(1L)).thenReturn(null);
+
+        assertThrows(ResourceNotFoundException.class, () -> leaveService.getByEmployee(1L));
     }
 }

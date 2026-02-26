@@ -10,6 +10,7 @@ import com.company.leave.dto.LeaveRequestDto;
 import com.company.leave.entity.*;
 import com.company.leave.exception.BadRequestException;
 import com.company.leave.exception.ResourceNotFoundException;
+import com.company.leave.mapper.LeaveMapper;
 import com.company.leave.repository.LeaveRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -21,89 +22,90 @@ import lombok.extern.slf4j.Slf4j;
 @Transactional
 public class LeaveServiceImpl implements LeaveService {
 
-	private final LeaveRepository repo;
+	private final LeaveRepository leaveRepository;
 	private final EmployeeClient employeeClient;
-	private final LeaveEventPublisher publisher;
+	private final LeaveEventPublisher eventPublisher;
+	private final LeaveMapper leaveMapper;
 
 	@Override
-	public LeaveRequest createLeave(LeaveRequestDto dto) {
+	public LeaveRequest createLeave(LeaveRequestDto leaveRequestDto) {
 		log.info("Creating leave request for employeeId={}, startDate={}, endDate={}", 
-				dto.getEmployeeId(), dto.getStartDate(), dto.getEndDate());
+				leaveRequestDto.getEmployeeId(), leaveRequestDto.getStartDate(), leaveRequestDto.getEndDate());
 
-		validateDates(dto);
+		validateDates(leaveRequestDto);
 
-		employeeClient.validateEmployee(dto.getEmployeeId());
+		employeeClient.validateEmployee(leaveRequestDto.getEmployeeId());
 
-		LeaveRequest leave = LeaveRequest.builder().employeeId(dto.getEmployeeId()).startDate(dto.getStartDate())
-				.endDate(dto.getEndDate()).reason(dto.getReason()).status(LeaveStatus.PENDING)
-				.createdAt(LocalDateTime.now()).build();
+		LeaveRequest newLeaveRequest = leaveMapper.toEntity(leaveRequestDto);
+		newLeaveRequest.setStatus(LeaveStatus.PENDING);
+		newLeaveRequest.setCreatedAt(LocalDateTime.now());
 
-		LeaveRequest saved = repo.save(leave);
+		LeaveRequest savedLeaveRequest = leaveRepository.save(newLeaveRequest);
 		log.info("Leave request created successfully with leaveId={}, employeeId={}, status={}", 
-				saved.getId(), saved.getEmployeeId(), saved.getStatus());
+				savedLeaveRequest.getId(), savedLeaveRequest.getEmployeeId(), savedLeaveRequest.getStatus());
 
 		try {
-			publisher.publishLeaveEvent(saved);
-			log.info("Leave event published successfully for leaveId={}", saved.getId());
-		} catch (Exception e) {
+			eventPublisher.publishLeaveEvent(savedLeaveRequest);
+			log.info("Leave event published successfully for leaveId={}", savedLeaveRequest.getId());
+		} catch (Exception publishException) {
 			log.info("Failed to publish leave create event for leaveId={}, employeeId={}", 
-					saved.getId(), saved.getEmployeeId(), e);
+					savedLeaveRequest.getId(), savedLeaveRequest.getEmployeeId(), publishException);
 		}
 
-		return saved;
+		return savedLeaveRequest;
 	}
 
-	private void validateDates(LeaveRequestDto dto) {
-		log.debug("Validating dates for startDate={}, endDate={}", dto.getStartDate(), dto.getEndDate());
-		if (dto.getEndDate().isBefore(dto.getStartDate())) {
-			log.warn("Invalid date range: endDate={} is before startDate={}", dto.getEndDate(), dto.getStartDate());
+	private void validateDates(LeaveRequestDto leaveRequestDto) {
+		log.debug("Validating dates for startDate={}, endDate={}", leaveRequestDto.getStartDate(), leaveRequestDto.getEndDate());
+		if (leaveRequestDto.getEndDate().isBefore(leaveRequestDto.getStartDate())) {
+			log.warn("Invalid date range: endDate={} is before startDate={}", leaveRequestDto.getEndDate(), leaveRequestDto.getStartDate());
 			throw new BadRequestException("End date must be after start date");
 		}
 	}
 
 	@Override
-	public LeaveRequest updateStatus(Long id, LeaveStatus status) {
-		log.info("Updating leave status for leaveId={}, newStatus={}", id, status);
+	public LeaveRequest updateStatus(Long leaveId, LeaveStatus newStatus) {
+		log.info("Updating leave status for leaveId={}, newStatus={}", leaveId, newStatus);
 
-		LeaveRequest leave = repo.findById(id)
+		LeaveRequest existingLeaveRequest = leaveRepository.findById(leaveId)
 				.orElseThrow(() -> {
-					log.info("Leave not found with leaveId={}", id);
+					log.info("Leave not found with leaveId={}", leaveId);
 					return new ResourceNotFoundException("Leave not found");
 				});
 
-		LeaveStatus oldStatus = leave.getStatus();
-		leave.setStatus(status);
-		LeaveRequest updated = repo.save(leave);
+		LeaveStatus previousStatus = existingLeaveRequest.getStatus();
+		existingLeaveRequest.setStatus(newStatus);
+		LeaveRequest updatedLeaveRequest = leaveRepository.save(existingLeaveRequest);
 		log.info("Leave status updated successfully for leaveId={}, employeeId={}, oldStatus={}, newStatus={}", 
-				updated.getId(), updated.getEmployeeId(), oldStatus, status);
+				updatedLeaveRequest.getId(), updatedLeaveRequest.getEmployeeId(), previousStatus, newStatus);
 
 		try {
-			publisher.publishLeaveEvent(updated);
-			log.info("Leave status update event published for leaveId={}", updated.getId());
-		} catch (Exception e) {
+			eventPublisher.publishLeaveEvent(updatedLeaveRequest);
+			log.info("Leave status update event published for leaveId={}", updatedLeaveRequest.getId());
+		} catch (Exception publishException) {
 			log.info("Failed to publish leave update event for leaveId={}, employeeId={}, status={}", 
-					updated.getId(), updated.getEmployeeId(), status, e);
+					updatedLeaveRequest.getId(), updatedLeaveRequest.getEmployeeId(), newStatus, publishException);
 		}
 
-		return updated;
+		return updatedLeaveRequest;
 	}
 
 	@Override
 	@Transactional
-	public List<LeaveRequest> getByEmployee(Long empId) {
-		log.info("Fetching leave requests for employeeId={}", empId);
+	public List<LeaveRequest> getByEmployee(Long employeeId) {
+		log.info("Fetching leave requests for employeeId={}", employeeId);
 
-		employeeClient.validateEmployee(empId);
+		employeeClient.validateEmployee(employeeId);
 
-		List<LeaveRequest> leaves = repo.findByEmployeeId(empId);
+		List<LeaveRequest> employeeLeaveRequests = leaveRepository.findByEmployeeId(employeeId);
 
-		if (leaves == null || leaves.isEmpty()) {
-			log.warn("No leave records found for employeeId={}", empId);
+		if (employeeLeaveRequests == null || employeeLeaveRequests.isEmpty()) {
+			log.warn("No leave records found for employeeId={}", employeeId);
 			throw new ResourceNotFoundException("Employee not found or no leave records");
 		}
 
-		log.info("Found {} leave records for employeeId={}", leaves.size(), empId);
-		return leaves;
+		log.info("Found {} leave records for employeeId={}", employeeLeaveRequests.size(), employeeId);
+		return employeeLeaveRequests;
 	}
 
 }
