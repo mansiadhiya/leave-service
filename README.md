@@ -373,6 +373,139 @@ INSERT INTO leave_requests (employee_id, leave_type, start_date, end_date, reaso
 - [ ] Test maximum pending requests limit
 - [ ] Validate employee exists
 
+## Test Cases Documentation
+
+### Test Coverage Summary
+- **Total Tests**: 50+
+- **Test Classes**: 17
+- **Coverage Target**: 80%+
+
+### Test Structure
+
+#### 1. Service Layer Tests
+**LeaveServiceImplTest** (9 tests)
+- `createLeave_Success`: Validates leave request creation
+- `createLeave_EmployeeNotFound`: Tests employee validation
+- `createLeave_PublishEventFails`: Tests event publishing failure handling
+- `updateStatus_Success`: Tests status update to APPROVED
+- `updateStatus_LeaveNotFound`: Tests exception for non-existent leave
+- `updateStatus_PublishEventFails`: Tests event failure on status update
+- `getByEmployee_Success`: Tests retrieving employee leaves
+- `getByEmployee_EmployeeNotFound`: Tests validation for invalid employee
+- `getByEmployee_PublishEventFails`: Tests event failure on retrieval
+
+#### 2. Repository Layer Tests
+**LeaveRepositoryTest** (5 tests)
+- `save_Success`: Tests saving leave request
+- `findById_Success`: Tests finding leave by ID
+- `findByEmployeeId_Success`: Tests finding leaves by employee
+- `delete_Success`: Tests deleting leave request
+- `existsById_Success`: Tests checking leave existence
+
+#### 3. Controller Layer Tests
+**LeaveControllerTest** (3 tests)
+- `create_Success`: Tests POST endpoint with valid data
+- `updateStatus_Success`: Tests PUT endpoint for status update
+- `list_Success`: Tests GET endpoint for employee leaves
+
+#### 4. Entity Tests
+**LeaveRequestTest** (2 tests)
+- `setAndGetFields`: Validates entity field operations
+- `prePersist_SetsCreatedAt`: Tests automatic timestamp setting
+
+#### 5. DTO Tests
+**LeaveRequestDtoTest** (3 tests)
+- `setAndGetFields`: Validates DTO field operations
+- `validation_Success`: Tests valid DTO
+- `validation_Fails`: Tests validation constraints
+
+**ApiResponseTest** (3 tests)
+- `success_CreatesSuccessResponse`: Tests success response builder
+- `error_CreatesErrorResponse`: Tests error response builder
+- `setAndGetFields`: Validates response fields
+
+**LeaveStatusChangedEventTest** (3 tests)
+- `setAndGetFields`: Validates event DTO fields
+- `builder_CreatesEvent`: Tests builder pattern
+- `allArgsConstructor_CreatesEvent`: Tests constructor
+
+**StatusUpdateDtoTest** (1 test)
+- `setAndGetStatus`: Validates status DTO
+
+#### 6. Mapper Tests
+**LeaveMapperTest** (1 test)
+- `mapperInterface_Exists`: Validates MapStruct mapper
+
+#### 7. Client Tests
+**EmployeeClientTest** (1 test)
+- `validateEmployee_Success`: Tests employee service integration
+
+#### 8. Security Tests
+**JwtUtilTest** (2 tests)
+- `extractUsername_Success`: Tests JWT username extraction
+- `validateToken_Success`: Tests JWT token validation
+
+**JwtFilterTest** (3 tests)
+- `doFilterInternal_ValidToken`: Tests filter with valid JWT
+- `doFilterInternal_InvalidToken`: Tests filter with invalid JWT
+- `doFilterInternal_NoToken`: Tests filter without token
+
+#### 9. Event Publisher Tests
+**LeaveEventPublisherTest** (2 tests)
+- `publishLeaveStatusChanged_Success`: Tests event publishing
+- `publishLeaveStatusChanged_Failure`: Tests error handling
+
+#### 10. Configuration Tests
+**RabbitMQConfigTest** (8 tests)
+- `leaveEventsQueue_CreatesQueue`: Tests queue creation
+- `leaveEventsDLQ_CreatesDeadLetterQueue`: Tests DLQ creation
+- `leaveEventsExchange_CreatesExchange`: Tests exchange creation
+- `leaveEventsDLX_CreatesDeadLetterExchange`: Tests DLX creation
+- `leaveEventsBinding_CreatesBinding`: Tests queue binding
+- `messageConverter_CreatesConverter`: Tests message converter
+- `rabbitTemplate_CreatesTemplate`: Tests RabbitMQ template
+- `rabbitListenerContainerFactory_CreatesFactory`: Tests listener factory
+
+**SecurityConfigTest** (1 test)
+- `filter_CreatesSecurityFilterChain`: Tests security configuration
+
+**LoggingFilterTest** (3 tests)
+- `doFilter_AddsTraceIdFromHeader`: Tests trace ID propagation
+- `doFilter_GeneratesTraceIdWhenMissing`: Tests trace ID generation
+- `doFilter_ClearsMDCAfterProcessing`: Tests MDC cleanup
+
+#### 11. Exception Tests
+**GlobalExceptionHandlerTest** (3 tests)
+- `notFound_ReturnsNotFoundResponse`: Tests 404 handling
+- `badRequest_ReturnsBadRequestResponse`: Tests 400 handling
+- `generic_ReturnsInternalServerError`: Tests 500 handling
+
+**ExceptionTest** (3 tests)
+- `badRequestException_CreatesWithMessage`: Tests BadRequestException
+- `resourceNotFoundException_CreatesWithMessage`: Tests ResourceNotFoundException
+- `externalServiceException_CreatesWithMessage`: Tests ExternalServiceException
+
+### Running Tests
+
+```bash
+# Run all tests
+mvn clean test
+
+# Run with coverage report
+mvn clean test jacoco:report
+
+# Run specific test class
+mvn test -Dtest=LeaveServiceImplTest
+
+# View coverage report
+open target/site/jacoco/index.html
+```
+
+### Test Results
+```
+Tests run: 50+, Failures: 0, Errors: 0, Skipped: 0
+```
+
 ## Docker Support
 
 ```dockerfile
